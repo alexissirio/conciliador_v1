@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Conciliador · Total Home S.A.</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  html,body{margin:0;padding:0;background:#0c0e14}
+  #root{min-height:100vh}
+  select option{background:#13161f;color:#e2e8f0}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useCallback, useMemo, useRef } = React;
+
+
+
+// ── DESIGN TOKENS ─────────────────────────────────────────────────────────────
+const C = {
+  bg: "#0c0e14", surface: "#13161f", surfaceHigh: "#1a1e2b",
+  border: "#1f2436", borderHi: "#2a3050",
+  accent: "#3b82f6", accentHov: "#2563eb", accentGlow: "rgba(59,130,246,0.12)",
+  green: "#10b981", greenBg: "rgba(16,185,129,0.07)",
+  red: "#ef4444", redBg: "rgba(239,68,68,0.07)",
+  amber: "#f59e0b", amberBg: "rgba(245,158,11,0.07)",
+  purple: "#a855f7", purpleBg: "rgba(168,85,247,0.07)",
+  text: "#e2e8f0", dim: "#94a3b8", muted: "#4b5675",
+};
+
+const S = `
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:${C.bg};color:${C.text};font-family:'Syne',sans-serif;min-height:100vh}
+.app{max-width:1160px;margin:0 auto;padding:36px 24px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+
+.hdr-tag{font-family:'JetBrains Mono',monospace;font-size:10px;color:${C.accent};letter-spacing:3px;text-transform:uppercase;margin-bottom:6px}
+h1{font-size:34px;font-weight:800;letter-spacing:-1.5px;line-height:1}
+.hdr-sub{color:${C.dim};font-size:13px;margin-top:6px}
+
+/* steps */
+.steps{display:flex;margin-bottom:32px;gap:0}
+.step{flex:1;text-align:center;position:relative}
+.step:not(:last-child):after{content:'';position:absolute;top:13px;left:50%;width:100%;height:1px;background:${C.border};z-index:0}
+.step-dot{width:26px;height:26px;border-radius:50%;border:2px solid ${C.border};background:${C.bg};display:flex;align-items:center;justify-content:center;margin:0 auto 5px;font-size:10px;font-weight:700;position:relative;z-index:1;transition:all .2s;color:${C.muted}}
+.step.done .step-dot{background:${C.green};border-color:${C.green};color:#fff}
+.step.active .step-dot{background:${C.accent};border-color:${C.accent};color:#fff;box-shadow:0 0 14px rgba(59,130,246,.4)}
+.step-lbl{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${C.muted}}
+.step.done .step-lbl,.step.active .step-lbl{color:${C.text}}
+
+/* upload grid */
+.up-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.up-zone{border:1.5px dashed ${C.borderHi};border-radius:12px;padding:26px 20px;text-align:center;cursor:pointer;transition:all .2s;background:${C.surface};position:relative;animation:fadeUp .3s ease}
+.up-zone:hover,.up-zone.drag{border-color:${C.accent};background:${C.accentGlow}}
+.up-zone.loaded{border-color:${C.green};border-style:solid;background:${C.greenBg}}
+.up-zone.parsing{border-color:${C.amber};border-style:solid;background:${C.amberBg};cursor:wait}
+.up-zone.pdf-ai{border-color:${C.purple};border-style:solid;background:${C.purpleBg}}
+.up-lbl{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${C.muted};margin-bottom:5px}
+.up-icon{font-size:26px;margin-bottom:7px}
+.up-fname{font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.green};font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 8px}
+.up-fname.purple{color:${C.purple}}
+.up-meta{font-size:11px;color:${C.muted}}
+.up-hint{color:${C.dim};font-size:13px;font-weight:500;margin-bottom:4px}
+.up-ext{font-family:'JetBrains Mono',monospace;font-size:10px;color:${C.muted}}
+.btn-clr{font-size:10px;color:${C.muted};background:none;border:none;cursor:pointer;text-decoration:underline;font-family:'JetBrains Mono',monospace;margin-top:5px;display:block;width:100%}
+.btn-clr:hover{color:${C.red}}
+
+/* pdf status bar */
+.pdf-bar{display:flex;align-items:center;gap:10px;background:${C.purpleBg};border:1px solid rgba(168,85,247,.2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:${C.purple};font-family:'JetBrains Mono',monospace;animation:fadeUp .3s ease}
+.pdf-bar .spinner{width:14px;height:14px;border:2px solid rgba(168,85,247,.3);border-top-color:${C.purple};border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+.pdf-warn{background:${C.amberBg};border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:${C.amber};font-family:'JetBrains Mono',monospace;animation:fadeUp .3s ease}
+.pdf-warn button{background:${C.amber};color:#000;border:none;border-radius:5px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;margin-left:10px;font-family:'Syne',sans-serif}
+.pdf-warn button:hover{opacity:.85}
+
+/* config card */
+.cfg{background:${C.surface};border:1px solid ${C.border};border-radius:12px;padding:22px;margin-bottom:14px;animation:fadeUp .3s ease}
+.cfg-ttl{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${C.muted};margin-bottom:14px}
+.kp-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.col-sel{background:${C.bg};border:1px solid ${C.borderHi};border-radius:6px;padding:6px 10px;color:${C.text};font-family:'JetBrains Mono',monospace;font-size:11px;outline:none;cursor:pointer;min-width:130px;transition:border-color .15s}
+.col-sel:focus{border-color:${C.accent}}
+.arrow{color:${C.muted};font-size:15px;padding:0 2px}
+.btn-add-kp{padding:5px 14px;background:transparent;border:1px dashed ${C.borderHi};border-radius:6px;color:${C.dim};font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;transition:all .15s;margin-top:6px}
+.btn-add-kp:hover{border-color:${C.accent};color:${C.accent}}
+.btn-rm-kp{background:none;border:none;color:${C.muted};cursor:pointer;font-size:13px;padding:0 4px;line-height:1}
+.btn-rm-kp:hover{color:${C.red}}
+.tol-row{display:flex;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid ${C.border};align-items:center;flex-wrap:wrap}
+.tol-lbl{font-size:11px;color:${C.dim};font-weight:600;white-space:nowrap}
+.tol-btn{padding:4px 13px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;border:1px solid ${C.borderHi};background:transparent;color:${C.dim};transition:all .15s}
+.tol-btn.on{background:${C.amberBg};border-color:${C.amber};color:${C.amber}}
+
+/* run btn */
+.btn-run{width:100%;padding:15px;background:${C.accent};color:#fff;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.3px;margin-bottom:22px}
+.btn-run:hover:not(:disabled){background:${C.accentHov};transform:translateY(-1px);box-shadow:0 8px 24px rgba(59,130,246,.3)}
+.btn-run:disabled{opacity:.35;cursor:not-allowed}
+.btn-run.loading{animation:shimmer 1.5s infinite;background:linear-gradient(90deg,${C.accent} 0%,${C.accentHov} 50%,${C.accent} 100%);background-size:400px 100%}
+
+/* summary */
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.stat{border-radius:10px;padding:15px 18px;border:1px solid}
+.stat.g{background:${C.greenBg};border-color:rgba(16,185,129,.18)}
+.stat.r{background:${C.redBg};border-color:rgba(239,68,68,.18)}
+.stat.a{background:${C.amberBg};border-color:rgba(245,158,11,.18)}
+.stat-n{font-size:30px;font-weight:800;line-height:1;margin-bottom:3px}
+.stat.g .stat-n{color:${C.green}}.stat.r .stat-n{color:${C.red}}.stat.a .stat-n{color:${C.amber}}
+.stat-l{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:${C.muted}}
+
+/* tabs */
+.tabs{display:flex;gap:4px;margin-bottom:14px;background:${C.surface};border:1px solid ${C.border};border-radius:10px;padding:4px}
+.tab{flex:1;padding:9px 14px;border-radius:7px;border:none;background:transparent;color:${C.muted};font-family:'Syne',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:7px}
+.tab.on{background:${C.bg};color:${C.text}}
+.badge{font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600}
+.tab.on.tg .badge{background:${C.greenBg};color:${C.green}}
+.tab.on.tr .badge{background:${C.redBg};color:${C.red}}
+.tab.on.ta .badge{background:${C.amberBg};color:${C.amber}}
+
+/* table */
+.tbl-wrap{border:1px solid ${C.border};border-radius:10px;overflow:hidden}
+.tbl-bar{padding:9px 14px;background:${C.surface};border-bottom:1px solid ${C.border};display:flex;gap:10px;align-items:center}
+.srch{flex:1;background:${C.bg};border:1px solid ${C.border};border-radius:6px;padding:6px 11px;font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.text};outline:none;transition:border-color .15s}
+.srch:focus{border-color:${C.accent}}
+.btn-exp{padding:6px 14px;background:transparent;border:1px solid ${C.borderHi};border-radius:6px;color:${C.dim};font-family:'Syne',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn-exp:hover{border-color:${C.accent};color:${C.accent}}
+.btn-exp-all{padding:7px 16px;background:transparent;border:1px solid ${C.borderHi};border-radius:7px;color:${C.dim};font-family:'Syne',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-exp-all:hover{border-color:${C.green};color:${C.green}}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead{background:${C.surface};position:sticky;top:0;z-index:2}
+th{padding:9px 13px;text-align:left;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:${C.muted};border-bottom:1px solid ${C.border};white-space:nowrap}
+td{padding:8px 13px;border-bottom:1px solid ${C.border};font-family:'JetBrains Mono',monospace;font-size:11px;color:${C.dim};white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+tr:last-child td{border-bottom:none}
+tr.mr td{color:${C.text}}
+tr.ar td{color:${C.red}}
+tr.br td{color:${C.amber}}
+tr:hover td{background:${C.surfaceHigh}}
+.kc{color:${C.accent}!important;font-weight:600}
+.tbl-scroll{max-height:460px;overflow-y:auto}
+.tbl-scroll::-webkit-scrollbar{width:4px}
+.tbl-scroll::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px}
+.empty{text-align:center;padding:44px 24px;color:${C.muted};background:${C.surface}}
+.empty .ei{font-size:32px;margin-bottom:10px}
+.empty p{font-size:13px}
+.err{background:${C.redBg};border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:11px 15px;margin-bottom:14px;font-family:'JetBrains Mono',monospace;font-size:12px;color:${C.red}}
+`;
+
+// ── PARSERS ───────────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return { headers: [], rows: [] };
+  const sep = lines[0].includes(";") ? ";" : lines[0].includes("\t") ? "\t" : lines[0].includes("|") ? "|" : ",";
+  const splitLine = l => {
+    const out = []; let cur = ""; let inQ = false;
+    for (let i = 0; i < l.length; i++) {
+      const ch = l[i];
+      if (ch === '"') { inQ = !inQ; continue; }
+      if (!inQ && ch === sep) { out.push(cur.trim()); cur = ""; }
+      else cur += ch;
+    }
+    out.push(cur.trim());
+    return out;
+  };
+  const headers = splitLine(lines[0]);
+  const rows = lines.slice(1).filter(l => l.trim()).map(l => {
+    const vals = splitLine(l);
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = vals[i] ?? ""; });
+    return obj;
+  });
+  return { headers, rows };
+}
+
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+    const s = document.createElement("script"); s.src = src;
+    s.onload = res; s.onerror = () => rej(new Error("Script load failed: " + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function parseXLSX(file) {
+  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => {
+      try {
+        const wb = window.XLSX.read(e.target.result, { type: "binary" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const json = window.XLSX.utils.sheet_to_json(ws, { defval: "" });
+        const headers = json.length > 0 ? Object.keys(json[0]) : [];
+        res({ headers, rows: json });
+      } catch (err) { rej(err); }
+    };
+    r.readAsBinaryString(file);
+  });
+}
+
+// pdf.js text extraction
+async function extractPDFText(file) {
+  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const ab = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: ab }).promise;
+  let fullText = "";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    // Sort items by y (top→bottom), then x (left→right) to preserve table structure
+    const items = tc.items.map(it => ({ x: Math.round(it.transform[4]), y: Math.round(it.transform[5]), str: it.str }));
+    items.sort((a, b) => b.y - a.y || a.x - b.x);
+    // Group by y-band (same row = within 5px)
+    const rows = [];
+    let curRow = null, curY = null;
+    for (const it of items) {
+      if (curY === null || Math.abs(it.y - curY) > 5) { curRow = []; rows.push(curRow); curY = it.y; }
+      curRow.push(it.str);
+    }
+    fullText += rows.map(r => r.join("\t")).join("\n") + "\n";
+  }
+  return fullText;
+}
+
+// Heuristic: detect if extracted text looks like a structured table
+function detectTableQuality(text) {
+  const lines = text.trim().split("\n").filter(l => l.trim());
+  if (lines.length < 3) return 0;
+  // Count lines that have at least 2 tab-separated non-empty tokens
+  const structured = lines.filter(l => l.split("\t").filter(t => t.trim()).length >= 2).length;
+  // Count lines with date-like patterns
+  const hasDates = lines.filter(l => /\d{2}[\/\-]\d{2}[\/\-]\d{2,4}/.test(l)).length;
+  // Count lines with amount-like patterns
+  const hasAmounts = lines.filter(l => /[\d.,]{4,}/.test(l)).length;
+  const score = (structured / lines.length) * 40 + (hasDates / lines.length) * 30 + (hasAmounts / lines.length) * 30;
+  return Math.round(score);
+}
+
+function heuristicParseTable(text) {
+  const lines = text.trim().split("\n").filter(l => l.trim());
+  if (lines.length < 2) return null;
+
+  // Find header row: first line with multiple non-empty tokens
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(10, lines.length); i++) {
+    const tokens = lines[i].split("\t").filter(t => t.trim());
+    if (tokens.length >= 2) { headerIdx = i; break; }
+  }
+
+  const headers = lines[headerIdx].split("\t").map((h, i) => h.trim() || `Col_${i + 1}`).filter((_, i, a) => i < a.length);
+  const rows = [];
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const tokens = lines[i].split("\t");
+    if (tokens.filter(t => t.trim()).length < 2) continue;
+    const obj = {};
+    headers.forEach((h, j) => { obj[h] = (tokens[j] ?? "").trim(); });
+    rows.push(obj);
+  }
+  return rows.length > 0 ? { headers, rows } : null;
+}
+
+// AI fallback: send PDF text to Claude to parse into JSON table
+async function aiParsePDF(rawText, filename) {
+  const prompt = `Sos un experto en contabilidad argentina. El siguiente es texto extraído de un PDF (extracto bancario, reporte contable u otro documento financiero).
+
+Tu tarea: devolvé ÚNICAMENTE un JSON válido con esta estructura:
+{
+  "headers": ["col1", "col2", ...],
+  "rows": [{"col1": "val", ...}, ...]
+}
+
+Reglas:
+- Identificá la tabla de movimientos/transacciones principal
+- Normalizá los nombres de columna: Fecha, Descripcion, Referencia, Debito, Credito, Importe, Saldo (usá estos nombres cuando aplique)
+- Omití filas de totales, encabezados repetidos, y filas vacías
+- Mantené los importes como aparecen en el texto (sin reformatear)
+- Si no encontrás una tabla clara, devolvé {"headers":[],"rows":[]}
+- NO incluyas explicaciones, markdown, ni texto fuera del JSON
+
+Nombre del archivo: ${filename}
+
+Texto extraído:
+${rawText.slice(0, 12000)}`;
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 4000,
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+  if (!resp.ok) throw new Error("API error: " + resp.status);
+  const data = await resp.json();
+  const txt = data.content.find(b => b.type === "text")?.text ?? "";
+  // Strip possible markdown fences
+  const clean = txt.replace(/```json|```/gi, "").trim();
+  return JSON.parse(clean);
+}
+
+// Main parse entry point
+async function parseFile(file, onStatus) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".csv") || name.endsWith(".txt")) {
+    const text = await file.text();
+    return { ...parseCSV(text), source: "csv" };
+  }
+  if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+    return { ...(await parseXLSX(file)), source: "xlsx" };
+  }
+  if (name.endsWith(".pdf")) {
+    onStatus("Extrayendo texto del PDF...");
+    const rawText = await extractPDFText(file);
+    const score = detectTableQuality(rawText);
+    onStatus(`Calidad de detección: ${score}/100`);
+    if (score >= 45) {
+      const parsed = heuristicParseTable(rawText);
+      if (parsed) return { ...parsed, source: "pdf-local", rawText, score };
+    }
+    // Low confidence → signal caller to ask user
+    return { headers: [], rows: [], source: "pdf-needs-ai", rawText, score };
+  }
+  throw new Error("Formato no soportado. Usá CSV, XLSX o PDF.");
+}
+
+// ── MATCHING ENGINE ───────────────────────────────────────────────────────────
+function normalize(v) { return String(v ?? "").trim().toLowerCase().replace(/\s+/g, " "); }
+function numVal(v) { const n = parseFloat(String(v).replace(/[^0-9.,-]/g, "").replace(",", ".")); return isNaN(n) ? null : Math.abs(n); }
+
+function buildKey(row, pairs, side, tol) {
+  return pairs.map(p => {
+    const col = side === "a" ? p.a : p.b;
+    const raw = row[col] ?? "";
+    if (p.type === "amount") {
+      const n = numVal(raw);
+      if (n === null) return normalize(raw);
+      const t = tol === "0.01" ? 0.01 : tol === "1" ? 1 : tol === "10" ? 10 : 0;
+      return t === 0 ? String(Math.round(n * 100)) : String(Math.round(n / t));
+    }
+    return normalize(raw);
+  }).join("|||");
+}
+
+function conciliar(rowsA, rowsB, pairs, tol) {
+  const mapB = new Map();
+  rowsB.forEach((row, idx) => {
+    const k = buildKey(row, pairs, "b", tol);
+    if (!mapB.has(k)) mapB.set(k, []);
+    mapB.get(k).push({ row, idx, used: false });
+  });
+  const matches = [], onlyA = [];
+  rowsA.forEach(rowA => {
+    const k = buildKey(rowA, pairs, "a", tol);
+    const c = (mapB.get(k) ?? []).find(x => !x.used);
+    if (c) { c.used = true; matches.push({ rowA, rowB: c.row }); }
+    else onlyA.push(rowA);
+  });
+  const onlyB = [];
+  mapB.forEach(arr => arr.forEach(x => { if (!x.used) onlyB.push(x.row); }));
+  return { matches, onlyA, onlyB };
+}
+
+// ── CSV EXPORT ────────────────────────────────────────────────────────────────
+function exportCSV(rows, fname) {
+  if (!rows.length) return;
+  const hs = Object.keys(rows[0]);
+  const csv = ["sep=;", hs.join(";"), ...rows.map(r => hs.map(h => `"${String(r[h] ?? "").replace(/"/g, '""')}"`).join(";"))].join("\n");
+  const bom = "\uFEFF";
+  const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = fname; a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+}
+
+// ── UPLOAD ZONE ───────────────────────────────────────────────────────────────
+function UploadZone({ label, file, drag, onFile, onClear, onDrag, status }) {
+  const inputRef = useRef();
+  const handleDrop = e => { e.preventDefault(); onDrag(false); if (e.dataTransfer.files[0]) onFile(e.dataTransfer.files[0]); };
+  const zoneClass = file
+    ? file.source === "pdf-ai" || file.source === "pdf-needs-ai" ? "up-zone pdf-ai loaded" : "up-zone loaded"
+    : status ? "up-zone parsing" : drag ? "up-zone drag" : "up-zone";
+
+  return (
+    <div className={zoneClass}
+      onClick={() => { if (!file && !status) inputRef.current.click(); }}
+      onDragOver={e => { e.preventDefault(); onDrag(true); }}
+      onDragLeave={() => onDrag(false)}
+      onDrop={handleDrop}>
+      <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls,.pdf,.txt" style={{ display: "none" }}
+        onChange={e => { if (e.target.files[0]) onFile(e.target.files[0]); e.target.value = ""; }} />
+      <div className="up-lbl">{label}</div>
+      {file ? (
+        <>
+          <div className="up-icon">{file.source?.startsWith("pdf") ? "📄" : "✅"}</div>
+          <div className={`up-fname${file.source === "pdf-ai" ? " purple" : ""}`}>{file.name}</div>
+          <div className="up-meta">
+            {file.data?.rows?.length ?? 0} filas · {file.data?.headers?.length ?? 0} columnas
+            {file.source === "pdf-ai" && " · ✨ parseado con IA"}
+            {file.source === "pdf-local" && ` · PDF local (score ${file.score})`}
+          </div>
+          <button className="btn-clr" onClick={e => { e.stopPropagation(); onClear(); }}>× quitar archivo</button>
+        </>
+      ) : status ? (
+        <>
+          <div className="up-icon">⏳</div>
+          <div className="up-hint">{status}</div>
+        </>
+      ) : (
+        <>
+          <div className="up-icon">📂</div>
+          <div className="up-hint">Arrastrá o hacé click</div>
+          <div className="up-ext">CSV · XLSX · XLS · PDF</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── DATA TABLE ────────────────────────────────────────────────────────────────
+function DataTable({ rows, keyCols, rowClass, emptyMsg, exportName }) {
+  const [q, setQ] = useState("");
+  const headers = useMemo(() => rows.length > 0 ? Object.keys(rows[0]).slice(0, 12) : [], [rows]);
+  const filtered = useMemo(() => {
+    if (!q) return rows;
+    const lo = q.toLowerCase();
+    return rows.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(lo)));
+  }, [rows, q]);
+
+  if (!rows.length) return (
+    <div className="tbl-wrap"><div className="empty"><div className="ei">🎉</div><p>{emptyMsg}</p></div></div>
+  );
+  return (
+    <div className="tbl-wrap">
+      <div className="tbl-bar">
+        <input className="srch" placeholder="Buscar..." value={q} onChange={e => setQ(e.target.value)} />
+        <button className="btn-exp" onClick={() => exportCSV(filtered, exportName)}>↓ Exportar</button>
+      </div>
+      <div className="tbl-scroll">
+        <table>
+          <thead><tr>{headers.map(h => <th key={h}>{h}</th>)}</tr></thead>
+          <tbody>
+            {filtered.slice(0, 500).map((row, i) => (
+              <tr key={i} className={rowClass}>
+                {headers.map(h => <td key={h} className={keyCols.includes(h) ? "kc" : ""}>{String(row[h] ?? "")}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {filtered.length > 500 && <div style={{ padding: "8px 13px", fontSize: 10, color: C.muted, fontFamily: "JetBrains Mono", borderTop: `1px solid ${C.border}` }}>Mostrando 500/{filtered.length} · Exportá para ver todo</div>}
+      </div>
+    </div>
+  );
+}
+
+function MatchTable({ matches, pairs, exportName }) {
+  const [q, setQ] = useState("");
+  const rows = useMemo(() => matches.map(m => {
+    const o = {};
+    pairs.forEach(p => { o[`🔑 ${p.a}`] = m.rowA[p.a]; });
+    Object.keys(m.rowA).filter(h => !pairs.find(p => p.a === h)).slice(0, 4).forEach(h => { o[`A:${h}`] = m.rowA[h]; });
+    Object.keys(m.rowB).filter(h => !pairs.find(p => p.b === h)).slice(0, 4).forEach(h => { o[`B:${h}`] = m.rowB[h]; });
+    return o;
+  }), [matches, pairs]);
+
+  const headers = useMemo(() => rows.length > 0 ? Object.keys(rows[0]) : [], [rows]);
+  const filtered = useMemo(() => {
+    if (!q) return rows;
+    const lo = q.toLowerCase();
+    return rows.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(lo)));
+  }, [rows, q]);
+
+  if (!matches.length) return (
+    <div className="tbl-wrap"><div className="empty"><div className="ei">⚠️</div><p>No hubo coincidencias. Revisá las columnas clave.</p></div></div>
+  );
+  return (
+    <div className="tbl-wrap">
+      <div className="tbl-bar">
+        <input className="srch" placeholder="Buscar en coincidencias..." value={q} onChange={e => setQ(e.target.value)} />
+        <button className="btn-exp" onClick={() => exportCSV(filtered, exportName)}>↓ Exportar</button>
+      </div>
+      <div className="tbl-scroll">
+        <table>
+          <thead><tr>{headers.map(h => <th key={h}>{h}</th>)}</tr></thead>
+          <tbody>
+            {filtered.slice(0, 500).map((row, i) => (
+              <tr key={i} className="mr">
+                {headers.map(h => <td key={h} className={h.startsWith("🔑") ? "kc" : ""}>{String(row[h] ?? "")}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN ──────────────────────────────────────────────────────────────────────
+function App() {
+  const [fileA, setFileA] = useState(null);
+  const [fileB, setFileB] = useState(null);
+  const [dragA, setDragA] = useState(false);
+  const [dragB, setDragB] = useState(false);
+  const [statusA, setStatusA] = useState(null);
+  const [statusB, setStatusB] = useState(null);
+  const [pdfWarn, setPdfWarn] = useState(null); // { side, rawText, fname, score }
+  const [aiLoading, setAiLoading] = useState(null); // "a"|"b"
+  const [pairs, setPairs] = useState([{ a: "", b: "", type: "text" }, { a: "", b: "", type: "amount" }]);
+  const [tol, setTol] = useState("exact");
+  const [result, setResult] = useState(null);
+  const [tab, setTab] = useState("matches");
+  const [running, setRunning] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const headersA = fileA?.data?.headers ?? [];
+  const headersB = fileB?.data?.headers ?? [];
+
+  const handleFile = useCallback(async (file, side) => {
+    setErr(null); setResult(null);
+    const setStatus = side === "a" ? setStatusA : setStatusB;
+    const setFile = side === "a" ? setFileA : setFileB;
+    setStatus("Leyendo archivo...");
+    try {
+      const parsed = await parseFile(file, setStatus);
+      if (parsed.source === "pdf-needs-ai") {
+        setPdfWarn({ side, rawText: parsed.rawText, fname: file.name, score: parsed.score });
+        setStatus(null);
+        return;
+      }
+      const enriched = { name: file.name, data: { headers: parsed.headers, rows: parsed.rows }, source: parsed.source, score: parsed.score };
+      setFile(enriched);
+      if (side === "a") setPairs([{ a: parsed.headers[0] ?? "", b: "", type: "text" }, { a: parsed.headers[1] ?? "", b: "", type: "amount" }]);
+      else setPairs(prev => prev.map((p, i) => i === 0 ? { ...p, b: parsed.headers[0] ?? "" } : p));
+    } catch (e) { setErr("Error al leer: " + e.message); }
+    finally { setStatus(null); }
+  }, []);
+
+  const runAIParse = useCallback(async () => {
+    if (!pdfWarn) return;
+    const { side, rawText, fname } = pdfWarn;
+    setAiLoading(side); setPdfWarn(null);
+    try {
+      const parsed = await aiParsePDF(rawText, fname);
+      if (!parsed.rows?.length) throw new Error("La IA no detectó una tabla en el PDF. Intentá exportar el PDF como CSV desde el banco.");
+      const enriched = { name: fname, data: { headers: parsed.headers, rows: parsed.rows }, source: "pdf-ai" };
+      if (side === "a") { setFileA(enriched); setPairs([{ a: parsed.headers[0] ?? "", b: "", type: "text" }, { a: parsed.headers[1] ?? "", b: "", type: "amount" }]); }
+      else { setFileB(enriched); setPairs(prev => prev.map((p, i) => i === 0 ? { ...p, b: parsed.headers[0] ?? "" } : p)); }
+    } catch (e) { setErr("Error IA: " + e.message); }
+    finally { setAiLoading(null); }
+  }, [pdfWarn]);
+
+  const canRun = fileA && fileB && pairs.every(p => p.a && p.b);
+
+  const run = useCallback(async () => {
+    if (!canRun) return;
+    setRunning(true); setErr(null);
+    try {
+      await new Promise(r => setTimeout(r, 60));
+      setResult(conciliar(fileA.data.rows, fileB.data.rows, pairs, tol));
+      setTab("matches");
+    } catch (e) { setErr("Error: " + e.message); }
+    finally { setRunning(false); }
+  }, [canRun, fileA, fileB, pairs, tol]);
+
+  // ── Modal state for reporte config
+  const [showModal, setShowModal] = useState(false);
+  const [reporteCfg, setReporteCfg] = useState({ empresa:"Total Home S.A.", banco:"", cuenta:"", periodo:"", saldoContable:"", saldoExtracto:"", fechaExtracto:"", preparado:"" });
+
+  const exportAll = useCallback(() => { setShowModal(true); }, [result]);
+
+  const generarReporte = useCallback(async () => {
+    if (!result) return;
+    setShowModal(false);
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
+    const X = window.XLSX;
+    const wb = X.utils.book_new();
+
+    // ── Helper styles (limited XLSX.js style support via cell styles)
+    const DARK = "1E1E2E", MID = "2A2A3E", LIGHT = "F0F4F8", SUBTOT = "D0D8E4";
+    const BLUE_A = "3A7BC8", BLUE_B = "1F618D", TEAL = "00C9A7", GREEN_BG = "D4EDDA";
+
+    const cs = (v, opts={}) => ({
+      v,
+      t: typeof v === "number" ? "n" : "s",
+      s: {
+        font: { name:"Arial", bold:!!opts.bold, sz: opts.sz||10, color:{rgb: opts.color||"000000"} },
+        fill: opts.bg ? { patternType:"solid", fgColor:{rgb:opts.bg} } : undefined,
+        alignment: { horizontal:opts.h||"left", vertical:"center", wrapText:false },
+        numFmt: opts.fmt || (typeof v==="number" ? '#,##0.00' : undefined),
+      }
+    });
+
+    const rows = [];
+    const push = (arr) => rows.push(arr);
+    const sc = reporteCfg.saldoContable ? parseFloat(String(reporteCfg.saldoContable).replace(",",".")) : 0;
+    const se = reporteCfg.saldoExtracto ? parseFloat(String(reporteCfg.saldoExtracto).replace(",",".")) : 0;
+
+    // Collect partidas from result
+    const partA = result.onlyB.map(r => {
+      const desc = Object.values(r).slice(0,2).join(" — ");
+      const impCol = Object.keys(r).find(k => /importe|monto|credito|debito|amount/i.test(k));
+      const imp = impCol ? parseFloat(String(r[impCol]).replace(",",".")) || 0 : 0;
+      return { desc, ref: Object.values(r)[2]||"", imp };
+    });
+    const partB = result.onlyA.map(r => {
+      const desc = Object.values(r).slice(0,2).join(" — ");
+      const impCol = Object.keys(r).find(k => /importe|monto|credito|debito|amount/i.test(k));
+      const imp = impCol ? parseFloat(String(r[impCol]).replace(",",".")) || 0 : 0;
+      return { desc, ref: Object.values(r)[2]||"", imp };
+    });
+
+    // Build rows array for sheet
+    push([cs("   ▐  CONCILIACIÓN BANCARIA",{bold:true,sz:15,bg:DARK,color:"FFFFFF"}), cs("",{bg:DARK}), cs("",{bg:DARK}), cs("",{bg:DARK}), cs("",{bg:DARK})]);
+    push([cs("",{bg:MID}), cs("Empresa / Razón Social:",{bold:true,sz:9,bg:MID,color:"FFFFFF"}), cs(reporteCfg.empresa,{sz:9,bg:MID,color:"FFFFFF"}), cs("Período:",{bold:true,sz:9,bg:MID,color:"FFFFFF"}), cs(reporteCfg.periodo,{sz:9,bg:MID,color:"FFFFFF"})]);
+    push([cs("",{bg:MID}), cs("Banco / Entidad:",{bold:true,sz:9,bg:MID,color:"FFFFFF"}), cs(reporteCfg.banco,{sz:9,bg:MID,color:"FFFFFF"}), cs("Cuenta N°:",{bold:true,sz:9,bg:MID,color:"FFFFFF"}), cs(reporteCfg.cuenta,{sz:9,bg:MID,color:"FFFFFF"})]);
+    push([]);
+    push([cs("  ①    SALDO SEGÚN CONTABILIDAD  (Libro Mayor / Mayor Auxiliar)",{bold:true,sz:11,bg:DARK,color:"FFFFFF"}),cs("",{bg:DARK}),cs("",{bg:DARK}),cs("",{bg:DARK}),cs("",{bg:DARK})]);
+    push([cs("",{bg:LIGHT}), cs("Saldo contable al cierre del período",{bold:true,bg:LIGHT}), cs("Ref. libro / folio:",{sz:9,bg:LIGHT,color:"555555"}), sc ? cs(sc,{bold:true,bg:LIGHT,h:"right",fmt:'#,##0.00'}) : cs("",{bg:LIGHT}), cs("",{bg:LIGHT})]);
+    push([cs("            A.  PARTIDAS EN BANCO NO REGISTRADAS EN CONTABILIDAD",{bold:true,sz:10,bg:DARK,color:"FFFFFF"}),cs("",{bg:DARK}),cs("",{bg:DARK}),cs("",{bg:DARK}),cs("",{bg:DARK})]);
+    push([cs("",{bg:BLUE_A}), cs("Descripción / Concepto",{bold:true,sz:9,bg:BLUE_A,color:"FFFFFF"}), cs("Referencia / N° Doc",{bold:true,sz:9,bg:BLUE_A,color:"FFFFFF",h:"center"}), cs("Débito  (+)",{bold:true,sz:9,bg:BLUE_A,color:"FFFFFF",h:"center"}), cs("Crédito  (−)",{bold:true,sz:9,bg:BLUE_A,color:"FFFFFF",h:"center"})]);
+
+    let sumADeb = 0, sumACre = 0;
+    const maxA = Math.max(partA.length, 5);
+    for (let i=0; i<maxA; i++) {
+      if (i < partA.length) {
+        const p = partA[i];
+        const isCredit = p.imp < 0 || /credito|crédito/i.test(p.desc);
+        const deb = !isCredit && p.imp > 0 ? p.imp : 0;
+        const cre = isCredit || p.imp < 0 ? Math.abs(p.imp) : 0;
+        sumADeb += deb; sumACre += cre;
+        push([cs(""), cs(p.desc,{sz:9}), cs(p.ref,{sz:9,h:"center"}), deb ? cs(deb,{sz:9,h:"right",fmt:'#,##0.00'}) : cs(""), cre ? cs(cre,{sz:9,h:"right",fmt:'#,##0.00'}) : cs("")]);
+      } else {
+        push([cs(""), cs(""), cs(""), cs(""), cs("")]);
+      }
+    }
+    push([cs("",{bg:SUBTOT}), cs("SUBTOTAL  A",{bold:true,bg:SUBTOT}), cs("",{bg:SUBTOT}), cs(sumADeb,{bold:true,bg:SUBTOT,h:"right",fmt:'#,##0.00'}), cs(sumACre,{bold:true,bg:SUBTOT,h:"right",fmt:'#,##0.00'})]);
+
+    push([cs("             B.  PARTIDAS EN CONTABILIDAD NO REFLEJADAS EN BANCO",{bold:true,sz:10,bg:DARK,color:"FFFFFF"}),cs("",{bg:DARK}),cs("",{bg:DARK}),cs("",{bg:DARK}),cs("",{bg:DARK})]);
+    push([cs("",{bg:BLUE_B}), cs("Descripción / Concepto",{bold:true,sz:9,bg:BLUE_B,color:"FFFFFF"}), cs("Referencia / N° Doc",{bold:true,sz:9,bg:BLUE_B,color:"FFFFFF",h:"center"}), cs("Débito  (+)",{bold:true,sz:9,bg:BLUE_B,color:"FFFFFF",h:"center"}), cs("Crédito  (−)",{bold:true,sz:9,bg:BLUE_B,color:"FFFFFF",h:"center"})]);
+
+    let sumBDeb = 0, sumBCre = 0;
+    const maxB = Math.max(partB.length, 5);
+    for (let i=0; i<maxB; i++) {
+      if (i < partB.length) {
+        const p = partB[i];
+        const isCredit = p.imp < 0 || /credito|crédito/i.test(p.desc);
+        const deb = !isCredit && p.imp > 0 ? p.imp : 0;
+        const cre = isCredit || p.imp < 0 ? Math.abs(p.imp) : 0;
+        sumBDeb += deb; sumBCre += cre;
+        push([cs(""), cs(p.desc,{sz:9}), cs(p.ref,{sz:9,h:"center"}), deb ? cs(deb,{sz:9,h:"right",fmt:'#,##0.00'}) : cs(""), cre ? cs(cre,{sz:9,h:"right",fmt:'#,##0.00'}) : cs("")]);
+      } else {
+        push([cs(""), cs(""), cs(""), cs(""), cs("")]);
+      }
+    }
+    push([cs("",{bg:SUBTOT}), cs("SUBTOTAL  B",{bold:true,bg:SUBTOT}), cs("",{bg:SUBTOT}), cs(sumBDeb,{bold:true,bg:SUBTOT,h:"right",fmt:'#,##0.00'}), cs(sumBCre,{bold:true,bg:SUBTOT,h:"right",fmt:'#,##0.00'})]);
+
+    push([]);
+    const saldoAjustado = sc + sumADeb - sumACre + sumBDeb - sumBCre;
+    push([cs("  ②    SALDO CONTABLE AJUSTADO",{bold:true,sz:12,bg:DARK,color:"FFFFFF"}),cs("",{bg:DARK}),cs("",{bg:DARK}),cs(saldoAjustado,{bold:true,bg:TEAL,color:"FFFFFF",h:"right",fmt:'#,##0.00'}),cs("← debe igualar extracto",{sz:9,bg:GREEN_BG,color:"007A5E",h:"center"})]);
+    push([]);
+    push([cs("  ③      SALDO SEGÚN EXTRACTO BANCARIO",{bold:true,sz:11,bg:DARK,color:"FFFFFF"}),cs("",{bg:DARK}),cs("",{bg:DARK}),cs("",{bg:DARK}),cs("",{bg:DARK})]);
+    push([cs("",{bg:LIGHT}), cs("Saldo según extracto bancario al cierre del período",{bold:true,bg:LIGHT}), cs(`Fecha extracto: ${reporteCfg.fechaExtracto}`,{sz:9,bg:LIGHT,color:"555555"}), se ? cs(se,{bold:true,bg:LIGHT,h:"right",fmt:'#,##0.00'}) : cs("",{bg:LIGHT}), cs("",{bg:LIGHT})]);
+    push([]);
+    push([cs("  ④     CONTROL DE DIFERENCIA",{bold:true,sz:11,bg:DARK,color:"FFFFFF"}),cs("",{bg:DARK}),cs("",{bg:DARK}),cs("",{bg:DARK}),cs("",{bg:DARK})]);
+    push([cs("",{bg:LIGHT}), cs("Saldo Contable Ajustado  ②",{bold:true,bg:LIGHT}), cs("②",{sz:9,bg:LIGHT,color:"555555"}), cs(saldoAjustado,{bold:true,bg:LIGHT,h:"right",fmt:'#,##0.00'}), cs("",{bg:LIGHT})]);
+    push([cs("",{bg:LIGHT}), cs("Saldo según Extracto Bancario  ③",{bold:true,bg:LIGHT}), cs("③",{sz:9,bg:LIGHT,color:"555555"}), cs(se,{bold:true,bg:LIGHT,h:"right",fmt:'#,##0.00'}), cs("",{bg:LIGHT})]);
+    const dif = saldoAjustado - se;
+    const conciliado = Math.abs(dif) <= 0.01;
+    push([cs("            DIFERENCIA  (debe ser CERO → conciliado)",{bold:true,sz:11,bg:DARK,color:"FFFFFF"}),cs("",{bg:DARK}),cs("",{bg:DARK}),cs(dif,{bold:true,bg:DARK,color:"FFD166",h:"right",fmt:'#,##0.00'}),cs(conciliado?"✔  CONCILIADO":`✘  REVISAR — dif: ${dif.toFixed(2)}`,{bold:true,bg:DARK,color:"00C9A7",h:"center"})]);
+    push([]);
+    push([cs("",{bg:LIGHT}), cs(reporteCfg.preparado||"Preparado por:",{bold:!reporteCfg.preparado,sz:9,bg:LIGHT,color:"555555",h:"center"}), cs("Fecha:",{bold:true,sz:9,bg:LIGHT,color:"555555",h:"center"}), cs("Revisado / Aprobado:",{bold:true,sz:9,bg:LIGHT,color:"555555",h:"center"}), cs("Firma / Sello:",{bold:true,sz:9,bg:LIGHT,color:"555555",h:"center"})]);
+
+    // ── Sheet 2: Detalle coincidencias
+    const mkRows = result.matches.map(m => {
+      const o = { ESTADO:"COINCIDE" };
+      pairs.forEach(p => { o[`KEY_${p.a}`] = m.rowA[p.a]; });
+      Object.keys(m.rowA).filter(h=>!pairs.find(p=>p.a===h)).forEach(h=>{o[`A_${h}`]=m.rowA[h];});
+      Object.keys(m.rowB).filter(h=>!pairs.find(p=>p.b===h)).forEach(h=>{o[`B_${h}`]=m.rowB[h];});
+      return o;
+    });
+    const onlyARows = result.onlyA.map(r=>({ESTADO:"SOLO_EN_A",...Object.fromEntries(Object.entries(r).map(([k,v])=>[`A_${k}`,v]))}));
+    const onlyBRows = result.onlyB.map(r=>({ESTADO:"SOLO_EN_B",...Object.fromEntries(Object.entries(r).map(([k,v])=>[`B_${k}`,v]))}));
+    const detalleAll = [...mkRows,...onlyARows,...onlyBRows];
+
+    // Build main sheet
+    const ws1 = X.utils.aoa_to_sheet(rows.map(r=>r.map(c=>c.v!==undefined?c.v:"")));
+    // Apply cell styles
+    rows.forEach((row, ri) => {
+      row.forEach((cell, ci) => {
+        const addr = X.utils.encode_cell({r:ri, c:ci});
+        if (!ws1[addr]) ws1[addr] = {};
+        if (cell.s) ws1[addr].s = cell.s;
+        if (cell.t) ws1[addr].t = cell.t;
+      });
+    });
+    ws1['!cols'] = [{wch:5},{wch:36},{wch:24},{wch:18},{wch:20}];
+
+    const ws2 = X.utils.json_to_sheet(detalleAll);
+    X.utils.book_append_sheet(wb, ws1, "Conciliación Bancaria");
+    X.utils.book_append_sheet(wb, ws2, "Detalle");
+
+    const buf = X.write(wb, { bookType:"xlsx", type:"array", cellStyles:true });
+    const blob = new Blob([buf], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url; a.download="Conciliacion_Bancaria.xlsx"; a.style.display="none";
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},200);
+  }, [result, pairs, reporteCfg]);
+
+  const updPair = (i, f, v) => { setPairs(prev => prev.map((p, j) => j === i ? { ...p, [f]: v } : p)); setResult(null); };
+  const step = !fileA && !fileB ? 1 : fileA && !fileB ? 2 : fileA && fileB && !result ? 3 : 4;
+
+  const modalStyle = {
+    position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.7)",
+    display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:24
+  };
+  const modalBox = {
+    background:C.surface,border:`1px solid ${C.borderHi}`,borderRadius:14,
+    padding:28,maxWidth:520,width:"100%",animation:"fadeUp .25s ease"
+  };
+  const inp = {
+    width:"100%",background:C.bg,border:`1px solid ${C.borderHi}`,borderRadius:7,
+    padding:"8px 12px",color:C.text,fontFamily:"'JetBrains Mono',monospace",
+    fontSize:12,outline:"none",marginTop:5,marginBottom:14
+  };
+  const lbl = { fontSize:11,color:C.dim,fontWeight:600,display:"block",fontFamily:"'Syne',sans-serif" };
+
+  return (
+    <>
+      <style>{S}</style>
+
+      {/* Modal */}
+      {showModal && (
+        <div style={modalStyle} onClick={e=>{if(e.target===e.currentTarget)setShowModal(false)}}>
+          <div style={modalBox}>
+            <div style={{fontSize:11,color:C.accent,letterSpacing:2,textTransform:"uppercase",fontFamily:"JetBrains Mono",marginBottom:6}}>Datos del reporte</div>
+            <div style={{fontSize:20,fontWeight:800,marginBottom:18,letterSpacing:-0.5}}>Generar Conciliación Bancaria</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
+              {[
+                ["empresa","Empresa","Total Home S.A."],
+                ["periodo","Período","Abril 2025"],
+                ["banco","Banco / Entidad",""],
+                ["cuenta","Cuenta N°",""],
+                ["saldoContable","Saldo contable (Libro Mayor)",""],
+                ["saldoExtracto","Saldo según extracto bancario",""],
+                ["fechaExtracto","Fecha extracto","30/04/2025"],
+                ["preparado","Preparado por",""],
+              ].map(([key,label,ph])=>(
+                <div key={key}>
+                  <span style={lbl}>{label}</span>
+                  <input style={inp} placeholder={ph} value={reporteCfg[key]}
+                    onChange={e=>setReporteCfg(p=>({...p,[key]:e.target.value}))} />
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:4}}>
+              <button onClick={()=>setShowModal(false)}
+                style={{flex:1,padding:"11px",background:"transparent",border:`1px solid ${C.borderHi}`,borderRadius:8,color:C.dim,fontFamily:"'Syne',sans-serif",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                Cancelar
+              </button>
+              <button onClick={generarReporte}
+                style={{flex:2,padding:"11px",background:C.green,border:"none",borderRadius:8,color:"#fff",fontFamily:"'Syne',sans-serif",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                ↓ Generar Excel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="app">
+        {/* Header */}
+        <div style={{ marginBottom: 36 }}>
+          <div className="hdr-tag">Total Home S.A. · GAF</div>
+          <h1>Conciliador</h1>
+          <div className="hdr-sub">CSV · XLSX · PDF — todo procesado en el browser. Sin subir datos a ningún servidor.</div>
+        </div>
+
+        {/* Steps */}
+        <div className="steps">
+          {["Cargar A", "Cargar B", "Configurar", "Resultado"].map((lbl, i) => (
+            <div key={lbl} className={`step ${step > i+1 ? "done" : step === i+1 ? "active" : ""}`}>
+              <div className="step-dot">{step > i+1 ? "✓" : i+1}</div>
+              <div className="step-lbl">{lbl}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Upload */}
+        <div className="up-grid">
+          <UploadZone label="Reporte A (el tuyo)" file={fileA} drag={dragA} status={statusA ?? (aiLoading === "a" ? "✨ Parseando con IA..." : null)}
+            onFile={f => handleFile(f, "a")} onClear={() => { setFileA(null); setResult(null); setPdfWarn(null); }} onDrag={setDragA} />
+          <UploadZone label="Reporte B (banco / otro sistema)" file={fileB} drag={dragB} status={statusB ?? (aiLoading === "b" ? "✨ Parseando con IA..." : null)}
+            onFile={f => handleFile(f, "b")} onClear={() => { setFileB(null); setResult(null); setPdfWarn(null); }} onDrag={setDragB} />
+        </div>
+
+        {/* PDF warning → AI fallback */}
+        {pdfWarn && (
+          <div className="pdf-warn">
+            ⚠ PDF detectado con baja confianza (score {pdfWarn.score}/100) — el layout puede no ser tabular.
+            <button onClick={runAIParse}>✨ Parsear con IA</button>
+            <span style={{ marginLeft: 6, fontSize: 11 }}>o descartá el archivo y exportá como CSV desde el banco.</span>
+          </div>
+        )}
+
+        {err && <div className="err">⚠ {err}</div>}
+
+        {/* Config */}
+        {fileA && fileB && (
+          <div className="cfg">
+            <div className="cfg-ttl">Columnas clave para el matching</div>
+            {pairs.map((p, i) => (
+              <div key={i} className="kp-row">
+                <select className="col-sel" value={p.a} onChange={e => updPair(i, "a", e.target.value)}>
+                  <option value="">— columna en A —</option>
+                  {headersA.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+                <span className="arrow">⟷</span>
+                <select className="col-sel" value={p.b} onChange={e => updPair(i, "b", e.target.value)}>
+                  <option value="">— columna en B —</option>
+                  {headersB.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+                <select className="col-sel" style={{ maxWidth: 105 }} value={p.type} onChange={e => updPair(i, "type", e.target.value)}>
+                  <option value="text">Texto</option>
+                  <option value="amount">Importe</option>
+                </select>
+                {pairs.length > 1 && <button className="btn-rm-kp" onClick={() => { setPairs(prev => prev.filter((_, j) => j !== i)); setResult(null); }}>×</button>}
+              </div>
+            ))}
+            <button className="btn-add-kp" onClick={() => setPairs(prev => [...prev, { a: "", b: "", type: "text" }])}>+ agregar columna clave</button>
+            <div className="tol-row">
+              <span className="tol-lbl">Tolerancia en importes:</span>
+              {[["exact","Exacto"],["0.01","± $0.01"],["1","± $1"],["10","± $10"]].map(([v,lbl]) => (
+                <button key={v} className={`tol-btn${tol===v?" on":""}`} onClick={() => { setTol(v); setResult(null); }}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Run */}
+        {fileA && fileB && (
+          <button className={`btn-run${running ? " loading" : ""}`} onClick={run} disabled={!canRun || running}>
+            {running ? "Procesando..." : "▶  Ejecutar conciliación"}
+          </button>
+        )}
+
+        {/* Results */}
+        {result && (
+          <>
+            <div className="summary">
+              <div className="stat g"><div className="stat-n">{result.matches.length.toLocaleString()}</div><div className="stat-l">Coinciden</div></div>
+              <div className="stat r"><div className="stat-n">{result.onlyA.length.toLocaleString()}</div><div className="stat-l">Solo en A</div></div>
+              <div className="stat a"><div className="stat-n">{result.onlyB.length.toLocaleString()}</div><div className="stat-l">Solo en B</div></div>
+            </div>
+
+            <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:12 }}>
+              <button className="btn-exp-all" onClick={exportAll}>📊 Generar Conciliación Bancaria (.xlsx)</button>
+            </div>
+
+            <div className="tabs">
+              <button className={`tab${tab==="matches"?" on tg":""}`} onClick={()=>setTab("matches")}>
+                ✅ Coinciden <span className="badge">{result.matches.length}</span>
+              </button>
+              <button className={`tab${tab==="onlyA"?" on tr":""}`} onClick={()=>setTab("onlyA")}>
+                ← Solo en A <span className="badge">{result.onlyA.length}</span>
+              </button>
+              <button className={`tab${tab==="onlyB"?" on ta":""}`} onClick={()=>setTab("onlyB")}>
+                → Solo en B <span className="badge">{result.onlyB.length}</span>
+              </button>
+            </div>
+
+            {tab==="matches" && <MatchTable matches={result.matches} pairs={pairs} exportName="conciliacion_coincidencias.csv" />}
+            {tab==="onlyA" && <DataTable rows={result.onlyA} keyCols={pairs.map(p=>p.a)} rowClass="ar" emptyMsg="Todo lo de A tiene match en B. ✓" exportName="solo_en_A.csv" />}
+            {tab==="onlyB" && <DataTable rows={result.onlyB} keyCols={pairs.map(p=>p.b)} rowClass="br" emptyMsg="Todo lo de B tiene match en A. ✓" exportName="solo_en_B.csv" />}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
+</script>
+</body>
+</html>
